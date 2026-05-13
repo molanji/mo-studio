@@ -224,3 +224,4 @@ For local dev, add them to `.env.local` (already git-ignored).
 - Always include the accent colour bar under the page title
 - Keep `app/login/page.js` and `middleware.js` untouched
 - Test with `npm run build` before pushing — catches errors before Vercel does
+
