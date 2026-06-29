@@ -21,6 +21,15 @@ const TOOLS = [
     textColor: '#111',
     href: '/contracts',
   },
+  {
+    id: 'pricing',
+    name: 'Pricing Tool',
+    description: 'Client profiling, scope builder, and the pricing calculator — every quote grounded in real margins.',
+    icon: '💰',
+    accent: '#2A4FD4',
+    textColor: '#fff',
+    href: '/pricing',
+  },
 ]
 
 const DOTS = ['#F5F248','#B8EAC4','#4A1030','#2A4FD4','#0C2818','#F0A0CC','#E03028']
