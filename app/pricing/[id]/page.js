@@ -94,6 +94,16 @@ export default function ViewQuotePage() {
               <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F5F248' }}>{formatRs(pricing.stretchPrice)}</p>
             </div>
           </div>
+
+          {pricing.recommendedPrice < pricing.floorPrice && (
+            <div style={{ marginTop: 16, background: 'rgba(224,48,40,0.12)',
+              border: '1px solid rgba(224,48,40,0.3)', borderRadius: 8,
+              padding: '12px 14px', color: '#E03028', fontSize: '0.82rem', lineHeight: 1.6 }}>
+              ⚠ <strong>Underpriced:</strong> the day-rate price ({formatRs(pricing.recommendedPrice)}) is below
+              the floor needed to hit a healthy margin ({formatRs(pricing.floorPrice)}). Usually caused by too many
+              founders assigned relative to days estimated. Do not proceed without review.
+            </div>
+          )}
         </div>
 
         {/* Breakdown */}
