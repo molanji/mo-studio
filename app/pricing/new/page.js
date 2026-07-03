@@ -58,7 +58,11 @@ export default function NewQuotePage() {
     freelancer_cost: 0,
     revision_rounds: 2,
     days_per_revision_round: 1,
-    third_party: { stock_assets: 0, plugins: 0, printing: 0, other: 0 },
+    third_party_items: [
+      { label: 'Stock Assets', amount: 0 },
+      { label: 'Plugins / Software', amount: 0 },
+      { label: 'Printing / Production', amount: 0 },
+    ],
     contingency_percent: 10,
   })
 
@@ -459,23 +463,40 @@ export default function NewQuotePage() {
             <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F0F0F0', margin: '20px 0 12px' }}>
               Third-Party Costs (Rs)
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 8 }}>
-              <Field label="Stock Assets">
-                <input type="number" value={scope.third_party.stock_assets} style={inputStyle}
-                  onChange={e => setScope(s => ({ ...s, third_party: { ...s.third_party, stock_assets: e.target.value } }))} />
-              </Field>
-              <Field label="Plugins/Software">
-                <input type="number" value={scope.third_party.plugins} style={inputStyle}
-                  onChange={e => setScope(s => ({ ...s, third_party: { ...s.third_party, plugins: e.target.value } }))} />
-              </Field>
-              <Field label="Printing/Production">
-                <input type="number" value={scope.third_party.printing} style={inputStyle}
-                  onChange={e => setScope(s => ({ ...s, third_party: { ...s.third_party, printing: e.target.value } }))} />
-              </Field>
-              <Field label="Other">
-                <input type="number" value={scope.third_party.other} style={inputStyle}
-                  onChange={e => setScope(s => ({ ...s, third_party: { ...s.third_party, other: e.target.value } }))} />
-              </Field>
+            <div style={{ background: '#1A1A1A', border: '1px solid #222', borderRadius: 12,
+              padding: 16, marginBottom: 8 }}>
+              {scope.third_party_items.map((item, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <input type="text" value={item.label} placeholder="Cost label"
+                    style={{ ...inputStyle, flex: 2 }}
+                    onChange={e => setScope(s => {
+                      const next = [...s.third_party_items]
+                      next[i] = { ...next[i], label: e.target.value }
+                      return { ...s, third_party_items: next }
+                    })} />
+                  <input type="number" value={item.amount} placeholder="0"
+                    style={{ ...inputStyle, flex: 1 }}
+                    onChange={e => setScope(s => {
+                      const next = [...s.third_party_items]
+                      next[i] = { ...next[i], amount: e.target.value }
+                      return { ...s, third_party_items: next }
+                    })} />
+                  <button onClick={() => setScope(s => ({
+                    ...s, third_party_items: s.third_party_items.filter((_, j) => j !== i),
+                  }))} style={{
+                    background: 'transparent', border: 'none', color: '#555',
+                    fontSize: '1.2rem', padding: '0 4px', cursor: 'pointer', lineHeight: 1 }}>
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => setScope(s => ({
+                ...s, third_party_items: [...s.third_party_items, { label: '', amount: 0 }],
+              }))} style={{
+                background: 'transparent', border: '1px dashed #333', borderRadius: 8,
+                color: '#666', padding: '7px 14px', fontSize: '0.8rem', marginTop: 4, cursor: 'pointer' }}>
+                + Add cost item
+              </button>
             </div>
 
             <Field label="Contingency %">
