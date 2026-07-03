@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { calcStudioDerived, formatRs } from '@/lib/pricingCalc'
+import { calcStudioDerived, formatRs, DELIVERABLES } from '@/lib/pricingCalc'
 
 const accent = '#2A4FD4'
 
@@ -63,6 +63,31 @@ export default function SettingsPage() {
 
   function removeFixedCost(idx) {
     setConfig(prev => ({ ...prev, fixed_costs: prev.fixed_costs.filter((_, i) => i !== idx) }))
+  }
+
+  function addCustomDeliverable() {
+    setConfig(prev => ({
+      ...prev,
+      custom_deliverables: [...(prev.custom_deliverables || []), { key: `custom_${Date.now()}`, label: '', defaultDays: 1 }],
+    }))
+    setSaved(false)
+  }
+
+  function updateCustomDeliverable(idx, field, value) {
+    setConfig(prev => {
+      const next = JSON.parse(JSON.stringify(prev))
+      next.custom_deliverables[idx][field] = field === 'defaultDays' ? Number(value) : value
+      return next
+    })
+    setSaved(false)
+  }
+
+  function removeCustomDeliverable(idx) {
+    setConfig(prev => ({
+      ...prev,
+      custom_deliverables: (prev.custom_deliverables || []).filter((_, i) => i !== idx),
+    }))
+    setSaved(false)
   }
 
   async function save() {
@@ -248,6 +273,65 @@ export default function SettingsPage() {
                 onChange={e => update('margin_green_threshold', Number(e.target.value))} />
             </Field>
           </div>
+        </div>
+
+        {/* Deliverables Library */}
+        <div style={{ background: '#1A1A1A', border: '1px solid #222', borderRadius: 14,
+          padding: 24, marginBottom: 32 }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F0F0F0', marginBottom: 6 }}>
+            Deliverables Library
+          </h3>
+          <p style={{ fontSize: '0.8rem', color: '#555', marginBottom: 20 }}>
+            These appear in the Scope Builder dropdown. {DELIVERABLES.length} built-in deliverables are always available. Add your own below.
+          </p>
+
+          {/* Built-in list — read-only reference */}
+          <details style={{ marginBottom: 20 }}>
+            <summary style={{ fontSize: '0.75rem', color: '#444', cursor: 'pointer', marginBottom: 8 }}>
+              View {DELIVERABLES.length} built-in deliverables
+            </summary>
+            <div style={{ marginTop: 10 }}>
+              {DELIVERABLES.map(d => (
+                <div key={d.key} style={{ display: 'flex', justifyContent: 'space-between',
+                  padding: '5px 0', borderBottom: '1px solid #1A1A1A' }}>
+                  <span style={{ fontSize: '0.8rem', color: '#444' }}>{d.label}</span>
+                  <span style={{ fontSize: '0.75rem', color: '#333' }}>{d.defaultDays} days</span>
+                </div>
+              ))}
+            </div>
+          </details>
+
+          {/* Custom deliverables — editable */}
+          <p style={{ fontSize: '0.7rem', fontWeight: 600, color: '#555',
+            textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+            Your custom deliverables
+          </p>
+          {(config.custom_deliverables || []).length === 0 && (
+            <p style={{ fontSize: '0.8rem', color: '#444', marginBottom: 12 }}>
+              None added yet. Use the scope builder to add on the fly, or add them here directly.
+            </p>
+          )}
+          {(config.custom_deliverables || []).map((d, i) => (
+            <div key={d.key} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input type="text" value={d.label} placeholder="Deliverable name"
+                style={{ ...inputStyle, flex: 2 }}
+                onChange={e => updateCustomDeliverable(i, 'label', e.target.value)} />
+              <input type="number" value={d.defaultDays} placeholder="days" step={0.5}
+                style={{ ...inputStyle, width: 80 }}
+                onChange={e => updateCustomDeliverable(i, 'defaultDays', e.target.value)} />
+              <span style={{ fontSize: '0.72rem', color: '#555', alignSelf: 'center', whiteSpace: 'nowrap' }}>
+                days
+              </span>
+              <button onClick={() => removeCustomDeliverable(i)} style={{
+                background: 'transparent', border: '1px solid #2A2A2A', borderRadius: 8,
+                color: '#E03028', padding: '0 14px', fontSize: '0.85rem', cursor: 'pointer' }}>×</button>
+            </div>
+          ))}
+          <button onClick={addCustomDeliverable} style={{
+            background: 'transparent', border: '1px dashed #333', borderRadius: 8,
+            color: '#666', padding: '8px 14px', fontSize: '0.8rem', marginTop: 4, cursor: 'pointer' }}>
+            + Add to library
+          </button>
         </div>
 
         <button onClick={save} disabled={saving} style={{

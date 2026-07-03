@@ -52,13 +52,23 @@ export default function NewQuotePage() {
   })
 
   const [scope, setScope] = useState({
-    deliverables: Object.fromEntries(DELIVERABLES.map(d => [d.key, { selected: false, days: d.defaultDays, quantity: 1 }])),
-    other_deliverable_text: '', other_deliverable_days: 0,
-    founders_on_project: 1, freelancer_involved: 'no', freelancer_cost: 0,
-    revision_rounds: 2, days_per_revision_round: 1,
+    added_deliverables: [],
+    founders_on_project: 1,
+    freelancer_involved: 'no',
+    freelancer_cost: 0,
+    revision_rounds: 2,
+    days_per_revision_round: 1,
     third_party: { stock_assets: 0, plugins: 0, printing: 0, other: 0 },
     contingency_percent: 10,
   })
+
+  // Add-deliverable UI state
+  const [dropdownKey, setDropdownKey] = useState('')
+  const [addDays, setAddDays] = useState(1)
+  const [addQty, setAddQty] = useState(1)
+  const [customLabel, setCustomLabel] = useState('')
+  const [saveToLib, setSaveToLib] = useState(false)
+  const [savingToLib, setSavingToLib] = useState(false)
 
   const [extraRevisionRounds, setExtraRevisionRounds] = useState(0)
 
@@ -83,21 +93,90 @@ export default function NewQuotePage() {
   scopeResult.daysPerRevisionRound = Number(scope.days_per_revision_round)
   const pricing = calcPricing({ scopeResult, clientProfile, config: configWithDerived, extraRevisionRounds })
 
-  function toggleDeliverable(key) {
-    setScope(s => ({
-      ...s,
-      deliverables: {
-        ...s.deliverables,
-        [key]: { ...s.deliverables[key], selected: !s.deliverables[key].selected },
-      },
-    }))
+  // Full deliverables list: built-in + saved custom ones from config
+  const allDeliverables = [
+    ...DELIVERABLES,
+    ...(config.custom_deliverables || []).map(d => ({ ...d, isCustom: true })),
+  ]
+
+  // Only show options not already added
+  const addedKeys = new Set(scope.added_deliverables.map(d => d.key))
+  const availableOptions = allDeliverables.filter(d => !addedKeys.has(d.key))
+
+  function updateAddedDeliverable(idx, field, value) {
+    setScope(s => {
+      const next = [...s.added_deliverables]
+      next[idx] = { ...next[idx], [field]: value }
+      return { ...s, added_deliverables: next }
+    })
   }
 
-  function updateDeliverableField(key, field, value) {
-    setScope(s => ({
-      ...s,
-      deliverables: { ...s.deliverables, [key]: { ...s.deliverables[key], [field]: value } },
-    }))
+  function removeAddedDeliverable(idx) {
+    setScope(s => ({ ...s, added_deliverables: s.added_deliverables.filter((_, i) => i !== idx) }))
+  }
+
+  function handleDropdownChange(val) {
+    setDropdownKey(val)
+    if (val && val !== '__custom__') {
+      const found = allDeliverables.find(d => d.key === val)
+      if (found) { setAddDays(found.defaultDays); setAddQty(1) }
+    } else {
+      setAddDays(1)
+      setAddQty(1)
+    }
+  }
+
+  async function handleAdd() {
+    if (!dropdownKey) return
+
+    if (dropdownKey === '__custom__') {
+      if (!customLabel.trim()) return
+      const newItem = {
+        key: `custom_${Date.now()}`,
+        label: customLabel.trim(),
+        days: Number(addDays) || 1,
+        quantity: 1,
+        perUnit: false,
+        isCustom: true,
+      }
+      setScope(s => ({ ...s, added_deliverables: [...s.added_deliverables, newItem] }))
+      if (saveToLib) {
+        setSavingToLib(true)
+        const newCustom = [
+          ...(config.custom_deliverables || []),
+          { key: newItem.key, label: newItem.label, defaultDays: newItem.days },
+        ]
+        const newConfig = { ...config, custom_deliverables: newCustom }
+        await fetch('/api/pricing/config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newConfig),
+        })
+        setConfig(newConfig)
+        setSavingToLib(false)
+      }
+      setCustomLabel('')
+      setSaveToLib(false)
+    } else {
+      const found = allDeliverables.find(d => d.key === dropdownKey)
+      if (!found || addedKeys.has(found.key)) return
+      setScope(s => ({
+        ...s,
+        added_deliverables: [...s.added_deliverables, {
+          key: found.key,
+          label: found.label,
+          days: Number(addDays) || found.defaultDays,
+          quantity: Number(addQty) || 1,
+          perUnit: found.perUnit || false,
+          unitLabel: found.unitLabel,
+          isCustom: found.isCustom || false,
+        }],
+      }))
+    }
+
+    setDropdownKey('')
+    setAddDays(1)
+    setAddQty(1)
   }
 
   async function saveQuote() {
@@ -235,45 +314,119 @@ export default function NewQuotePage() {
         {/* STEP 2 — Scope Builder */}
         {step === 2 && (
           <div>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F0F0F0', marginBottom: 12 }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F0F0F0', marginBottom: 6 }}>
               Deliverables
             </h3>
+            <p style={{ fontSize: '0.78rem', color: '#555', marginBottom: 12 }}>
+              Pick from the dropdown and set days. Add your own if it's not in the list.
+            </p>
+
+            {/* Added items list */}
             <div style={{ background: '#1A1A1A', border: '1px solid #222', borderRadius: 12,
-              padding: 16, marginBottom: 20 }}>
-              {DELIVERABLES.map(d => {
-                const item = scope.deliverables[d.key]
-                return (
-                  <div key={d.key} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 0', borderBottom: '1px solid #1E1E1E',
-                  }}>
-                    <input type="checkbox" checked={item.selected}
-                      onChange={() => toggleDeliverable(d.key)}
-                      style={{ width: 16, height: 16, accentColor: accent }} />
-                    <span style={{ flex: 1, fontSize: '0.85rem',
-                      color: item.selected ? '#F0F0F0' : '#555' }}>{d.label}</span>
-                    {item.selected && d.perUnit && (
+              padding: 16, marginBottom: 12 }}>
+              {scope.added_deliverables.length === 0 ? (
+                <p style={{ color: '#444', fontSize: '0.82rem', textAlign: 'center', padding: '16px 0' }}>
+                  Nothing added yet. Use the dropdown below.
+                </p>
+              ) : scope.added_deliverables.map((item, idx) => (
+                <div key={item.key} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 0', borderBottom: '1px solid #1E1E1E',
+                }}>
+                  <span style={{ flex: 1, fontSize: '0.85rem', color: '#F0F0F0' }}>
+                    {item.label}
+                    {item.isCustom && (
+                      <span style={{ marginLeft: 6, fontSize: '0.65rem', color: '#444',
+                        background: '#222', borderRadius: 4, padding: '1px 5px' }}>custom</span>
+                    )}
+                  </span>
+                  {item.perUnit && (
+                    <>
                       <input type="number" value={item.quantity} min={1}
-                        onChange={e => updateDeliverableField(d.key, 'quantity', e.target.value)}
-                        style={{ ...inputStyle, width: 60 }} placeholder={d.unitLabel} />
-                    )}
-                    {item.selected && (
-                      <input type="number" value={item.days} step={0.5}
-                        onChange={e => updateDeliverableField(d.key, 'days', e.target.value)}
-                        style={{ ...inputStyle, width: 70 }} />
-                    )}
-                    {item.selected && <span style={{ fontSize: '0.72rem', color: '#555', width: 30 }}>days</span>}
-                  </div>
-                )
-              })}
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', paddingTop: 10 }}>
-                <input type="text" placeholder="Other deliverable…" value={scope.other_deliverable_text}
-                  onChange={e => setScope(s => ({ ...s, other_deliverable_text: e.target.value }))}
-                  style={{ ...inputStyle, flex: 1 }} />
-                <input type="number" placeholder="days" value={scope.other_deliverable_days}
-                  onChange={e => setScope(s => ({ ...s, other_deliverable_days: e.target.value }))}
-                  style={{ ...inputStyle, width: 70 }} />
+                        onChange={e => updateAddedDeliverable(idx, 'quantity', Number(e.target.value))}
+                        style={{ ...inputStyle, width: 55 }} />
+                      <span style={{ fontSize: '0.72rem', color: '#555', whiteSpace: 'nowrap' }}>
+                        {item.unitLabel || 'units'}
+                      </span>
+                    </>
+                  )}
+                  <input type="number" value={item.days} step={0.5}
+                    onChange={e => updateAddedDeliverable(idx, 'days', e.target.value)}
+                    style={{ ...inputStyle, width: 65 }} />
+                  <span style={{ fontSize: '0.72rem', color: '#555' }}>days</span>
+                  <button onClick={() => removeAddedDeliverable(idx)} style={{
+                    background: 'transparent', border: 'none', color: '#555',
+                    fontSize: '1.2rem', padding: '0 4px', cursor: 'pointer', lineHeight: 1 }}>
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Add row */}
+            <div style={{ background: '#1A1A1A', border: '1px dashed #2A2A2A', borderRadius: 12,
+              padding: 16, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center',
+                marginBottom: dropdownKey === '__custom__' ? 12 : 0 }}>
+                <select value={dropdownKey} onChange={e => handleDropdownChange(e.target.value)}
+                  style={{ ...inputStyle, flex: 1 }}>
+                  <option value="">— Select deliverable to add —</option>
+                  {availableOptions.map(d => (
+                    <option key={d.key} value={d.key}>{d.label}</option>
+                  ))}
+                  <option value="__custom__">+ Custom (not in list)</option>
+                </select>
+
+                {dropdownKey && dropdownKey !== '__custom__' && (() => {
+                  const found = allDeliverables.find(d => d.key === dropdownKey)
+                  return found?.perUnit ? (
+                    <input type="number" value={addQty} min={1}
+                      onChange={e => setAddQty(Number(e.target.value))}
+                      style={{ ...inputStyle, width: 55 }} placeholder={found.unitLabel} />
+                  ) : null
+                })()}
+
+                {dropdownKey && dropdownKey !== '__custom__' && (
+                  <input type="number" value={addDays} step={0.5}
+                    onChange={e => setAddDays(Number(e.target.value))}
+                    style={{ ...inputStyle, width: 65 }} />
+                )}
+
+                {dropdownKey && dropdownKey !== '__custom__' && (
+                  <span style={{ fontSize: '0.72rem', color: '#555' }}>days</span>
+                )}
+
+                {dropdownKey && (
+                  <button onClick={handleAdd} style={{
+                    background: accent, border: 'none', borderRadius: 8,
+                    color: '#fff', padding: '9px 16px', fontSize: '0.85rem',
+                    fontWeight: 700, whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                    Add
+                  </button>
+                )}
               </div>
+
+              {dropdownKey === '__custom__' && (
+                <div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+                    <input type="text" value={customLabel}
+                      onChange={e => setCustomLabel(e.target.value)}
+                      placeholder="Deliverable name (e.g. Brand audit)"
+                      style={{ ...inputStyle, flex: 1 }} />
+                    <input type="number" value={addDays} step={0.5}
+                      onChange={e => setAddDays(Number(e.target.value))}
+                      style={{ ...inputStyle, width: 65 }} />
+                    <span style={{ fontSize: '0.72rem', color: '#555' }}>days</span>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8,
+                    fontSize: '0.8rem', color: '#666', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={saveToLib}
+                      onChange={e => setSaveToLib(e.target.checked)}
+                      style={{ accentColor: accent }} />
+                    {savingToLib ? 'Saving to library…' : 'Save to my deliverables library for future quotes'}
+                  </label>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
