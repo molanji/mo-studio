@@ -19,6 +19,7 @@ const MARGIN_COLORS = { red: '#E03028', amber: '#F5F248', green: '#B8EAC4' }
 export default function PricingDashboard() {
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(null)
 
   useEffect(() => {
     fetch('/api/pricing/projects').then(r => r.json()).then(d => {
@@ -26,6 +27,15 @@ export default function PricingDashboard() {
       setLoading(false)
     })
   }, [])
+
+  async function deleteProject(e, id) {
+    e.preventDefault()
+    if (!confirm('Delete this quote? This cannot be undone.')) return
+    setDeleting(id)
+    await fetch(`/api/pricing/projects/${id}`, { method: 'DELETE' })
+    setProjects(prev => prev.filter(p => p.id !== id))
+    setDeleting(null)
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#111', padding: '0 24px 80px' }}>
@@ -111,6 +121,18 @@ export default function PricingDashboard() {
                   }}>
                     {p.status.replace('_', ' ')}
                   </span>
+
+                  <button onClick={e => deleteProject(e, p.id)} disabled={deleting === p.id}
+                    title="Delete quote"
+                    style={{
+                      background: 'transparent', border: 'none', color: '#444',
+                      fontSize: '1rem', padding: '4px 6px', cursor: 'pointer',
+                      borderRadius: 6, lineHeight: 1,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.color = '#E03028'}
+                    onMouseLeave={e => e.currentTarget.style.color = '#444'}>
+                    {deleting === p.id ? '…' : '🗑'}
+                  </button>
                 </div>
               </Link>
             ))}

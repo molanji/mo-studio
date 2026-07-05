@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatRs } from '@/lib/pricingCalc'
 
@@ -12,8 +12,10 @@ const STATUS_OPTIONS = ['inquiry', 'proposal_sent', 'signed', 'active', 'complet
 
 export default function ViewQuotePage() {
   const { id } = useParams()
+  const router = useRouter()
   const [project, setProject] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetch(`/api/pricing/projects/${id}`).then(r => r.json()).then(d => {
@@ -29,6 +31,13 @@ export default function ViewQuotePage() {
       body: JSON.stringify({ status }),
     })
     setProject(p => ({ ...p, status }))
+  }
+
+  async function deleteProject() {
+    if (!confirm('Delete this quote? This cannot be undone.')) return
+    setDeleting(true)
+    await fetch(`/api/pricing/projects/${id}`, { method: 'DELETE' })
+    router.push('/pricing')
   }
 
   if (loading || !project) {
@@ -58,11 +67,20 @@ export default function ViewQuotePage() {
               Created {new Date(project.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' })}
             </p>
           </div>
-          <select value={project.status} onChange={e => updateStatus(e.target.value)} style={{
-            background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8,
-            color: '#F0F0F0', padding: '8px 14px', fontSize: '0.85rem' }}>
-            {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-          </select>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <select value={project.status} onChange={e => updateStatus(e.target.value)} style={{
+              background: '#1A1A1A', border: '1px solid #2A2A2A', borderRadius: 8,
+              color: '#F0F0F0', padding: '8px 14px', fontSize: '0.85rem' }}>
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+            </select>
+            <button onClick={deleteProject} disabled={deleting} title="Delete quote" style={{
+              background: 'transparent', border: '1px solid #2A2A2A', borderRadius: 8,
+              color: '#555', padding: '8px 12px', fontSize: '0.9rem', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#E03028'; e.currentTarget.style.color = '#E03028' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#2A2A2A'; e.currentTarget.style.color = '#555' }}>
+              {deleting ? '…' : '🗑'}
+            </button>
+          </div>
         </div>
 
         {/* Pricing summary */}

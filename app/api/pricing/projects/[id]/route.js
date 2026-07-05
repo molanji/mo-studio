@@ -20,3 +20,8 @@ export async function PUT(req, { params }) {
   )
   return Response.json({ ok: true })
 }
+
+export async function DELETE(req, { params }) {
+  await query('DELETE FROM pricing_projects WHERE id = $1', [params.id])
+  return Response.json({ ok: true })
+}
