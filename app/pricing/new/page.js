@@ -68,7 +68,8 @@ export default function NewQuotePage() {
 
   // Add-deliverable UI state
   const [dropdownKey, setDropdownKey] = useState('')
-  const [addDays, setAddDays] = useState(1)
+  const [addTime, setAddTime] = useState(1)
+  const [addUnit, setAddUnit] = useState('days')
   const [addQty, setAddQty] = useState(1)
   const [customLabel, setCustomLabel] = useState('')
   const [saveToLib, setSaveToLib] = useState(false)
@@ -91,7 +92,7 @@ export default function NewQuotePage() {
   const derived = calcStudioDerived(config)
   const configWithDerived = { ...config, derived }
   const clientProfile = calcClientProfile(profile, config)
-  const scopeResult = calcScope(scope, clientProfile.dayRate)
+  const scopeResult = calcScope(scope, clientProfile.dayRate, config.working_hours_per_day || 8)
   scopeResult.foundersOnProject = Number(scope.founders_on_project)
   scopeResult.freelancerCost = scope.freelancer_involved === 'yes' ? Number(scope.freelancer_cost) : 0
   scopeResult.daysPerRevisionRound = Number(scope.days_per_revision_round)
@@ -123,9 +124,10 @@ export default function NewQuotePage() {
     setDropdownKey(val)
     if (val && val !== '__custom__') {
       const found = allDeliverables.find(d => d.key === val)
-      if (found) { setAddDays(found.defaultDays); setAddQty(1) }
+      if (found) { setAddTime(found.defaultDays); setAddUnit('days'); setAddQty(1) }
     } else {
-      setAddDays(1)
+      setAddTime(1)
+      setAddUnit('days')
       setAddQty(1)
     }
   }
@@ -138,7 +140,8 @@ export default function NewQuotePage() {
       const newItem = {
         key: `custom_${Date.now()}`,
         label: customLabel.trim(),
-        days: Number(addDays) || 1,
+        timeValue: Number(addTime) || 1,
+        timeUnit: addUnit,
         quantity: 1,
         perUnit: false,
         isCustom: true,
@@ -146,9 +149,12 @@ export default function NewQuotePage() {
       setScope(s => ({ ...s, added_deliverables: [...s.added_deliverables, newItem] }))
       if (saveToLib) {
         setSavingToLib(true)
+        const defaultDays = addUnit === 'hours'
+          ? (Number(addTime) / (config.working_hours_per_day || 8))
+          : Number(addTime)
         const newCustom = [
           ...(config.custom_deliverables || []),
-          { key: newItem.key, label: newItem.label, defaultDays: newItem.days },
+          { key: newItem.key, label: newItem.label, defaultDays },
         ]
         const newConfig = { ...config, custom_deliverables: newCustom }
         await fetch('/api/pricing/config', {
@@ -169,7 +175,8 @@ export default function NewQuotePage() {
         added_deliverables: [...s.added_deliverables, {
           key: found.key,
           label: found.label,
-          days: Number(addDays) || found.defaultDays,
+          timeValue: Number(addTime) || found.defaultDays,
+          timeUnit: addUnit,
           quantity: Number(addQty) || 1,
           perUnit: found.perUnit || false,
           unitLabel: found.unitLabel,
@@ -179,7 +186,8 @@ export default function NewQuotePage() {
     }
 
     setDropdownKey('')
-    setAddDays(1)
+    setAddTime(1)
+    setAddUnit('days')
     setAddQty(1)
   }
 
@@ -354,10 +362,16 @@ export default function NewQuotePage() {
                       </span>
                     </>
                   )}
-                  <input type="number" value={item.days} step={0.5}
-                    onChange={e => updateAddedDeliverable(idx, 'days', e.target.value)}
-                    style={{ ...inputStyle, width: 65 }} />
-                  <span style={{ fontSize: '0.72rem', color: '#555' }}>days</span>
+                  <input type="number" value={item.timeValue ?? item.days ?? 0}
+                    step={item.timeUnit === 'hours' ? 1 : 0.5}
+                    onChange={e => updateAddedDeliverable(idx, 'timeValue', e.target.value)}
+                    style={{ ...inputStyle, width: 60 }} />
+                  <select value={item.timeUnit || 'days'}
+                    onChange={e => updateAddedDeliverable(idx, 'timeUnit', e.target.value)}
+                    style={{ ...inputStyle, width: 72, padding: '9px 6px' }}>
+                    <option value="days">days</option>
+                    <option value="hours">hrs</option>
+                  </select>
                   <button onClick={() => removeAddedDeliverable(idx)} style={{
                     background: 'transparent', border: 'none', color: '#555',
                     fontSize: '1.2rem', padding: '0 4px', cursor: 'pointer', lineHeight: 1 }}>
@@ -391,13 +405,18 @@ export default function NewQuotePage() {
                 })()}
 
                 {dropdownKey && dropdownKey !== '__custom__' && (
-                  <input type="number" value={addDays} step={0.5}
-                    onChange={e => setAddDays(Number(e.target.value))}
-                    style={{ ...inputStyle, width: 65 }} />
+                  <input type="number" value={addTime}
+                    step={addUnit === 'hours' ? 1 : 0.5}
+                    onChange={e => setAddTime(Number(e.target.value))}
+                    style={{ ...inputStyle, width: 60 }} />
                 )}
 
                 {dropdownKey && dropdownKey !== '__custom__' && (
-                  <span style={{ fontSize: '0.72rem', color: '#555' }}>days</span>
+                  <select value={addUnit} onChange={e => setAddUnit(e.target.value)}
+                    style={{ ...inputStyle, width: 72, padding: '9px 6px' }}>
+                    <option value="days">days</option>
+                    <option value="hours">hrs</option>
+                  </select>
                 )}
 
                 {dropdownKey && (
@@ -417,10 +436,15 @@ export default function NewQuotePage() {
                       onChange={e => setCustomLabel(e.target.value)}
                       placeholder="Deliverable name (e.g. Brand audit)"
                       style={{ ...inputStyle, flex: 1 }} />
-                    <input type="number" value={addDays} step={0.5}
-                      onChange={e => setAddDays(Number(e.target.value))}
-                      style={{ ...inputStyle, width: 65 }} />
-                    <span style={{ fontSize: '0.72rem', color: '#555' }}>days</span>
+                    <input type="number" value={addTime}
+                      step={addUnit === 'hours' ? 1 : 0.5}
+                      onChange={e => setAddTime(Number(e.target.value))}
+                      style={{ ...inputStyle, width: 60 }} />
+                    <select value={addUnit} onChange={e => setAddUnit(e.target.value)}
+                      style={{ ...inputStyle, width: 72, padding: '9px 6px' }}>
+                      <option value="days">days</option>
+                      <option value="hours">hrs</option>
+                    </select>
                   </div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8,
                     fontSize: '0.8rem', color: '#666', cursor: 'pointer' }}>
