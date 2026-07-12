@@ -14,10 +14,22 @@ export async function GET(req, { params }) {
 
 export async function PUT(req, { params }) {
   const body = await req.json()
-  await query(
-    `UPDATE pricing_projects SET status = $1, updated_at = now() WHERE id = $2`,
-    [body.status, params.id]
-  )
+  if (body.client_name !== undefined) {
+    // Full quote update
+    await query(
+      `UPDATE pricing_projects
+       SET client_name = $1, status = $2, client_profile = $3, scope = $4, pricing = $5, updated_at = now()
+       WHERE id = $6`,
+      [body.client_name, body.status, JSON.stringify(body.client_profile),
+       JSON.stringify(body.scope), JSON.stringify(body.pricing), params.id]
+    )
+  } else {
+    // Status-only update
+    await query(
+      `UPDATE pricing_projects SET status = $1, updated_at = now() WHERE id = $2`,
+      [body.status, params.id]
+    )
+  }
   return Response.json({ ok: true })
 }
 
