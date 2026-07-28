@@ -73,6 +73,12 @@ export default function ViewQuotePage() {
               color: '#F0F0F0', padding: '8px 14px', fontSize: '0.85rem' }}>
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
             </select>
+            <Link href={`/pricing/${id}/quote`} style={{
+              background: '#B8EAC4', border: 'none', borderRadius: 8,
+              color: '#0C2818', padding: '8px 14px', fontSize: '0.82rem', fontWeight: 700,
+              whiteSpace: 'nowrap' }}>
+              Generate Quote
+            </Link>
             <Link href={`/pricing/${id}/edit`} style={{
               background: 'transparent', border: '1px solid #2A2A2A', borderRadius: 8,
               color: '#888', padding: '8px 14px', fontSize: '0.82rem', fontWeight: 600,
