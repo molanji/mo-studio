@@ -151,6 +151,10 @@ export default function ViewQuotePage() {
             ['Total payable (inc GST)', pricing.totalPayableIncGst, true],
             ['TDS client deducts (10%)', -pricing.tdsAmount],
             ['Actual cash Molanji receives', pricing.actualCashReceived, true],
+            ...(pricing.findersFeeAmount > 0 ? [
+              [`Finder's fee (${pricing.findersFeePercent}%)`, -pricing.findersFeeAmount],
+              ['Net to Molanji after finder\'s fee', pricing.netAfterFindersFee, true],
+            ] : []),
             ['Effective hourly rate', pricing.effectiveHourlyRate],
           ].map(([label, val, bold]) => (
             <div key={label} style={{

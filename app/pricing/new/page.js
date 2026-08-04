@@ -49,6 +49,7 @@ export default function NewQuotePage() {
     industry: 'd2c', client_size: 'bootstrapped', found_via: 'referral',
     decision_maker: 'unknown', budget_range: 'not_disclosed',
     first_time: 'unknown', rush_project: 'no', country: 'india',
+    finders_fee_percent: 0,
   })
 
   const [scope, setScope] = useState({
@@ -281,6 +282,18 @@ export default function NewQuotePage() {
                 <Select value={profile.country} onChange={v => setProfile(p => ({ ...p, country: v }))}
                   options={[['india','India'],['international','International']]} />
               </Field>
+              {profile.found_via === 'referral' && (
+                <Field label="Finder's Fee %" span={2}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <input type="number" value={profile.finders_fee_percent || ''}
+                      placeholder="e.g. 10" min={0} max={50} style={{ ...inputStyle, maxWidth: 120 }}
+                      onChange={e => setProfile(p => ({ ...p, finders_fee_percent: e.target.value }))} />
+                    <span style={{ fontSize: '0.82rem', color: '#555' }}>
+                      % of project value (ex GST) — deducted from your cash received
+                    </span>
+                  </div>
+                </Field>
+              )}
             </div>
 
             {/* Live outputs */}
@@ -632,6 +645,10 @@ export default function NewQuotePage() {
                 ['Total payable (inc GST)', pricing.totalPayableIncGst, true],
                 ['TDS client deducts (10%)', -pricing.tdsAmount],
                 ['Actual cash Molanji receives', pricing.actualCashReceived, true],
+                ...(pricing.findersFeeAmount > 0 ? [
+                  [`Finder's fee (${pricing.findersFeePercent}%)`, -pricing.findersFeeAmount],
+                  ['Net to Molanji after finder\'s fee', pricing.netAfterFindersFee, true],
+                ] : []),
                 ['Effective hourly rate', pricing.effectiveHourlyRate],
                 ['Additional revision round cost', pricing.additionalRevisionRoundCost],
               ].map(([label, val, bold]) => (
