@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   calcStudioDerived, calcClientProfile, calcScope, calcPricing,
-  DELIVERABLES, formatRs,
+  DELIVERABLES, formatRs, formatCurrency, BILLING_REGIONS,
 } from '@/lib/pricingCalc'
 
 const accent = '#2A4FD4'
@@ -48,9 +48,13 @@ export default function NewQuotePage() {
   const [profile, setProfile] = useState({
     industry: 'd2c', client_size: 'bootstrapped', found_via: 'referral',
     decision_maker: 'unknown', budget_range: 'not_disclosed',
-    first_time: 'unknown', rush_project: 'no', country: 'india',
+    first_time: 'unknown', rush_project: 'no',
+    billing_region: 'india', billing_currency: 'INR',
+    exchange_rate_to_inr: 1, exchange_rate_fetched_at: null,
+    gross_up_withholding: false,
     finders_fee_percent: 0,
   })
+  const [rateLoading, setRateLoading] = useState(false)
 
   const [scope, setScope] = useState({
     added_deliverables: [],
@@ -98,6 +102,31 @@ export default function NewQuotePage() {
   scopeResult.freelancerCost = scope.freelancer_involved === 'yes' ? Number(scope.freelancer_cost) : 0
   scopeResult.daysPerRevisionRound = Number(scope.days_per_revision_round)
   const pricing = calcPricing({ scopeResult, clientProfile, config: configWithDerived, extraRevisionRounds })
+
+  async function fetchRate(currency) {
+    if (currency === 'INR') {
+      setProfile(p => ({ ...p, exchange_rate_to_inr: 1, exchange_rate_fetched_at: new Date().toISOString() }))
+      return
+    }
+    setRateLoading(true)
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/INR')
+      const data = await res.json()
+      const ratePerInr = data.rates?.[currency]
+      if (ratePerInr) setProfile(p => ({
+        ...p, exchange_rate_to_inr: 1 / ratePerInr,
+        exchange_rate_fetched_at: new Date().toISOString(),
+      }))
+    } catch {}
+    setRateLoading(false)
+  }
+
+  function handleRegionChange(region) {
+    const rc = BILLING_REGIONS[region]
+    const currency = rc?.currency || 'INR'
+    setProfile(p => ({ ...p, billing_region: region, billing_currency: currency, gross_up_withholding: false }))
+    fetchRate(currency)
+  }
 
   // Full deliverables list: built-in + saved custom ones from config
   const allDeliverables = [
@@ -278,10 +307,41 @@ export default function NewQuotePage() {
                 <Select value={profile.rush_project} onChange={v => setProfile(p => ({ ...p, rush_project: v }))}
                   options={[['no','No'],['yes','Yes (+25% premium)']]} />
               </Field>
-              <Field label="Country">
-                <Select value={profile.country} onChange={v => setProfile(p => ({ ...p, country: v }))}
-                  options={[['india','India'],['international','International']]} />
+              <Field label="Client's Billing Region">
+                <Select value={profile.billing_region} onChange={handleRegionChange}
+                  options={Object.entries(BILLING_REGIONS).map(([k, v]) => [k, v.label])} />
               </Field>
+              {profile.billing_region !== 'india' && (
+                <Field label="Invoice Currency">
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <Select value={profile.billing_currency}
+                      onChange={v => { setProfile(p => ({ ...p, billing_currency: v })); fetchRate(v) }}
+                      options={['USD','GBP','EUR','AED','SGD','AUD','CAD'].map(c => [c, c])} />
+                    <div style={{ fontSize: '0.78rem', color: '#555', whiteSpace: 'nowrap' }}>
+                      {rateLoading ? 'Fetching…' : profile.exchange_rate_to_inr > 1
+                        ? `1 ${profile.billing_currency} = ₹${profile.exchange_rate_to_inr.toFixed(2)}`
+                        : '—'}
+                    </div>
+                    <button onClick={() => fetchRate(profile.billing_currency)} style={{
+                      background: 'transparent', border: '1px solid #333', borderRadius: 6,
+                      color: '#666', padding: '5px 10px', fontSize: '0.72rem', cursor: 'pointer' }}>
+                      ↻
+                    </button>
+                  </div>
+                </Field>
+              )}
+              {profile.billing_region !== 'india' && BILLING_REGIONS[profile.billing_region]?.withholdingRate > 0 && (
+                <Field label={`Gross-up for ${Math.round(BILLING_REGIONS[profile.billing_region].withholdingRate * 100)}% withholding?`} span={2}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={profile.gross_up_withholding}
+                      onChange={e => setProfile(p => ({ ...p, gross_up_withholding: e.target.checked }))}
+                      style={{ accentColor: accent, width: 16, height: 16 }} />
+                    <span style={{ fontSize: '0.82rem', color: '#888' }}>
+                      Bump invoice so Molanji nets the target after client withholds {Math.round(BILLING_REGIONS[profile.billing_region].withholdingRate * 100)}%
+                    </span>
+                  </label>
+                </Field>
+              )}
               {profile.found_via === 'referral' && (
                 <Field label="Finder's Fee %" span={2}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -289,7 +349,7 @@ export default function NewQuotePage() {
                       placeholder="e.g. 10" min={0} max={50} style={{ ...inputStyle, maxWidth: 120 }}
                       onChange={e => setProfile(p => ({ ...p, finders_fee_percent: e.target.value }))} />
                     <span style={{ fontSize: '0.82rem', color: '#555' }}>
-                      % of project value (ex GST) — deducted from your cash received
+                      % of project value (ex taxes) — deducted from your cash received
                     </span>
                   </div>
                 </Field>
@@ -324,6 +384,13 @@ export default function NewQuotePage() {
                   border: '1px solid rgba(224,48,40,0.3)', borderRadius: 8,
                   padding: '10px 14px', color: '#E03028', fontSize: '0.8rem' }}>
                   ⚠ Consider qualifying this lead further before investing in a proposal
+                </div>
+              )}
+              {profile.billing_region !== 'india' && BILLING_REGIONS[profile.billing_region]?.complianceNote && (
+                <div style={{ marginTop: 14, background: 'rgba(245,242,72,0.07)',
+                  border: '1px solid rgba(245,242,72,0.2)', borderRadius: 8,
+                  padding: '10px 14px', color: '#B8A800', fontSize: '0.78rem', lineHeight: 1.6 }}>
+                  <strong>Tax note:</strong> {BILLING_REGIONS[profile.billing_region].complianceNote}
                 </div>
               )}
             </div>
@@ -635,35 +702,60 @@ export default function NewQuotePage() {
               padding: 24, marginBottom: 20 }}>
               <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#666',
                 textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Full Breakdown</h3>
-              {[
-                ['Base project price', pricing.baseProjectPrice],
-                ['Rush premium', pricing.rushPremium],
-                ['Freelancer + 3rd party passthrough', pricing.passthroughTotal],
-                ['Contingency', pricing.contingencyAmount],
-                ['Total project value (ex GST)', pricing.totalProjectValueExGst, true],
-                ['GST (18%)', pricing.gstAmount],
-                ['Total payable (inc GST)', pricing.totalPayableIncGst, true],
-                ['TDS client deducts (10%)', -pricing.tdsAmount],
-                ['Actual cash Molanji receives', pricing.actualCashReceived, true],
-                ...(pricing.findersFeeAmount > 0 ? [
-                  [`Finder's fee (${pricing.findersFeePercent}%)`, -pricing.findersFeeAmount],
-                  ['Net to Molanji after finder\'s fee', pricing.netAfterFindersFee, true],
-                ] : []),
-                ['Effective hourly rate', pricing.effectiveHourlyRate],
-                ['Additional revision round cost', pricing.additionalRevisionRoundCost],
-              ].map(([label, val, bold]) => (
-                <div key={label} style={{
-                  display: 'flex', justifyContent: 'space-between', padding: '8px 0',
-                  borderBottom: '1px solid #1E1E1E',
-                }}>
-                  <span style={{ fontSize: '0.85rem', color: bold ? '#F0F0F0' : '#888', fontWeight: bold ? 700 : 400 }}>
-                    {label}
-                  </span>
-                  <span style={{ fontSize: '0.85rem', color: bold ? '#F0F0F0' : '#CCC', fontWeight: bold ? 700 : 400 }}>
-                    {formatRs(val)}
-                  </span>
+              {(() => {
+                const fc = (inr) => pricing.isInternational && pricing.exchangeRateToInr > 1
+                  ? ` (${formatCurrency(inr / pricing.exchangeRateToInr, pricing.billingCurrency)})`
+                  : ''
+                const intlRows = pricing.isInternational ? [
+                  [`Total (ex taxes)${fc(pricing.totalProjectValueExGst)}`, pricing.totalProjectValueExGst, true],
+                  ['Export of services — GST zero-rated', 0],
+                  ...(pricing.grossUpWithholding && pricing.withholdingRate > 0 ? [
+                    [`Withholding gross-up (${Math.round(pricing.withholdingRate*100)}%)${fc(pricing.withholdingAmountInr)}`, pricing.withholdingAmountInr],
+                    [`Invoice amount${fc(pricing.totalPayableIncGst)}`, pricing.totalPayableIncGst, true],
+                    [`Client withholds (${Math.round(pricing.withholdingRate*100)}%)${fc(pricing.withholdingAmountInr)}`, -pricing.withholdingAmountInr],
+                  ] : [
+                    [`Invoice amount${fc(pricing.totalPayableIncGst)}`, pricing.totalPayableIncGst, true],
+                  ]),
+                  [`Net Molanji receives${fc(pricing.actualCashReceived)}`, pricing.actualCashReceived, true],
+                ] : [
+                  ['Total project value (ex GST)', pricing.totalProjectValueExGst, true],
+                  ['GST (18%)', pricing.gstAmount],
+                  ['Total payable (inc GST)', pricing.totalPayableIncGst, true],
+                  ['TDS client deducts (10%)', -pricing.tdsAmount],
+                  ['Actual cash Molanji receives', pricing.actualCashReceived, true],
+                ]
+                return [
+                  ['Base project price', pricing.baseProjectPrice],
+                  ['Rush premium', pricing.rushPremium],
+                  ['Freelancer + 3rd party passthrough', pricing.passthroughTotal],
+                  ['Contingency', pricing.contingencyAmount],
+                  ...intlRows,
+                  ...(pricing.findersFeeAmount > 0 ? [
+                    [`Finder's fee (${pricing.findersFeePercent}%)`, -pricing.findersFeeAmount],
+                    ['Net to Molanji after finder\'s fee', pricing.netAfterFindersFee, true],
+                  ] : []),
+                  ['Effective hourly rate', pricing.effectiveHourlyRate],
+                  ['Additional revision round cost', pricing.additionalRevisionRoundCost],
+                ].map(([label, val, bold]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between',
+                    padding: '8px 0', borderBottom: '1px solid #1E1E1E' }}>
+                    <span style={{ fontSize: '0.85rem', color: bold ? '#F0F0F0' : '#888', fontWeight: bold ? 700 : 400 }}>
+                      {label}
+                    </span>
+                    <span style={{ fontSize: '0.85rem', color: bold ? '#F0F0F0' : '#CCC', fontWeight: bold ? 700 : 400 }}>
+                      {formatRs(val)}
+                    </span>
+                  </div>
+                ))
+              })()}
+              {pricing.isInternational && pricing.withholdingRate > 0 && !pricing.grossUpWithholding && (
+                <div style={{ marginTop: 12, background: 'rgba(245,242,72,0.07)',
+                  border: '1px solid rgba(245,242,72,0.2)', borderRadius: 8,
+                  padding: '10px 14px', color: '#B8A800', fontSize: '0.78rem', lineHeight: 1.6 }}>
+                  ⚠ Client may deduct {Math.round(pricing.withholdingRate*100)}% withholding ({formatRs(pricing.withholdingAmountInr)} / {formatCurrency(pricing.withholdingForeign, pricing.billingCurrency)}).
+                  Enable gross-up in Step 1 to offset this.
                 </div>
-              ))}
+              )}
 
               <div style={{ marginTop: 16 }}>
                 <Field label="Extra Revision Rounds Requested (beyond standard)">

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { formatRs } from '@/lib/pricingCalc'
+import { formatRs, formatCurrency, BILLING_REGIONS } from '@/lib/pricingCalc'
 
 const accent = '#2A4FD4'
 const MARGIN_COLORS = { red: '#E03028', amber: '#F5F248', green: '#B8EAC4' }
@@ -141,22 +141,41 @@ export default function ViewQuotePage() {
           padding: 24, marginBottom: 20 }}>
           <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#666',
             textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Full Breakdown</h3>
-          {[
-            ['Base project price', pricing.baseProjectPrice],
-            ['Rush premium', pricing.rushPremium],
-            ['Freelancer + 3rd party passthrough', pricing.passthroughTotal],
-            ['Contingency', pricing.contingencyAmount],
-            ['Total project value (ex GST)', pricing.totalProjectValueExGst, true],
-            ['GST (18%)', pricing.gstAmount],
-            ['Total payable (inc GST)', pricing.totalPayableIncGst, true],
-            ['TDS client deducts (10%)', -pricing.tdsAmount],
-            ['Actual cash Molanji receives', pricing.actualCashReceived, true],
-            ...(pricing.findersFeeAmount > 0 ? [
-              [`Finder's fee (${pricing.findersFeePercent}%)`, -pricing.findersFeeAmount],
-              ['Net to Molanji after finder\'s fee', pricing.netAfterFindersFee, true],
-            ] : []),
-            ['Effective hourly rate', pricing.effectiveHourlyRate],
-          ].map(([label, val, bold]) => (
+          {(() => {
+            const fc = (inr) => pricing.isInternational && pricing.exchangeRateToInr > 1
+              ? ` (${formatCurrency(inr / pricing.exchangeRateToInr, pricing.billingCurrency)})`
+              : ''
+            const intlRows = pricing.isInternational ? [
+              [`Total (ex taxes)${fc(pricing.totalProjectValueExGst)}`, pricing.totalProjectValueExGst, true],
+              ['Export of services — GST zero-rated', 0],
+              ...(pricing.grossUpWithholding && pricing.withholdingRate > 0 ? [
+                [`Withholding gross-up (${Math.round(pricing.withholdingRate*100)}%)${fc(pricing.withholdingAmountInr)}`, pricing.withholdingAmountInr],
+                [`Invoice amount${fc(pricing.totalPayableIncGst)}`, pricing.totalPayableIncGst, true],
+                [`Client withholds (${Math.round(pricing.withholdingRate*100)}%)${fc(pricing.withholdingAmountInr)}`, -pricing.withholdingAmountInr],
+              ] : [
+                [`Invoice amount${fc(pricing.totalPayableIncGst)}`, pricing.totalPayableIncGst, true],
+              ]),
+              [`Net Molanji receives${fc(pricing.actualCashReceived)}`, pricing.actualCashReceived, true],
+            ] : [
+              ['Total project value (ex GST)', pricing.totalProjectValueExGst, true],
+              ['GST (18%)', pricing.gstAmount],
+              ['Total payable (inc GST)', pricing.totalPayableIncGst, true],
+              ['TDS client deducts (10%)', -pricing.tdsAmount],
+              ['Actual cash Molanji receives', pricing.actualCashReceived, true],
+            ]
+            return [
+              ['Base project price', pricing.baseProjectPrice],
+              ['Rush premium', pricing.rushPremium],
+              ['Freelancer + 3rd party passthrough', pricing.passthroughTotal],
+              ['Contingency', pricing.contingencyAmount],
+              ...intlRows,
+              ...(pricing.findersFeeAmount > 0 ? [
+                [`Finder's fee (${pricing.findersFeePercent}%)`, -pricing.findersFeeAmount],
+                ['Net to Molanji after finder\'s fee', pricing.netAfterFindersFee, true],
+              ] : []),
+              ['Effective hourly rate', pricing.effectiveHourlyRate],
+            ]
+          })().map(([label, val, bold]) => (
             <div key={label} style={{
               display: 'flex', justifyContent: 'space-between', padding: '8px 0',
               borderBottom: '1px solid #1E1E1E',
@@ -191,6 +210,14 @@ export default function ViewQuotePage() {
             Found via: {profile.found_via?.replace('_',' ')} · Decision maker: {profile.decision_maker} ·
             Budget: {profile.budget_range?.replace('_',' ')} · Rush: {profile.rush_project}
           </p>
+          {pricing.isInternational && (
+            <p style={{ fontSize: '0.78rem', color: '#555', marginTop: 8 }}>
+              Billing region: {BILLING_REGIONS[profile.billing_region]?.label || profile.billing_region} ·
+              Currency: {pricing.billingCurrency} ·
+              Rate: ₹{(pricing.exchangeRateToInr || 1).toFixed(2)}/{pricing.billingCurrency}
+              {pricing.withholdingRate > 0 && ` · Withholding: ${Math.round(pricing.withholdingRate*100)}%${pricing.grossUpWithholding ? ' (grossed up)' : ''}`}
+            </p>
+          )}
         </div>
 
         {/* Scope */}

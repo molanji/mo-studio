@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { formatRs } from '@/lib/pricingCalc'
+import { formatRs, formatCurrency, BILLING_REGIONS } from '@/lib/pricingCalc'
 
 const LOGO_SVG = `<svg viewBox="0 0 2800 563" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M638.387 281.172C638.387 112.001 750.388 0 919.559 0C1088.73 0 1202.29 112.001 1202.29 281.172C1202.29 450.342 1089.52 562.344 919.559 562.344C749.599 562.344 638.387 450.342 638.387 281.172ZM920.333 405.694C988.475 405.694 1036.25 354.792 1036.25 281.172C1036.25 207.551 988.475 156.65 920.333 156.65C852.191 156.65 805.205 207.551 805.205 281.172C805.205 354.792 852.191 405.694 920.333 405.694Z" fill="white"/><path d="M1233.62 7.82764H1386.34V411.958H1463.88V554.495H1233.62V7.82764Z" fill="white"/><path d="M1573.53 7.82764H1795.18L1898.56 554.495H1746.62L1738 492.621H1631.49L1622.1 554.495H1473.29L1573.55 7.82764H1573.53ZM1719.98 368.888L1685.52 134.717H1683.96L1649.49 368.888H1719.97H1719.98Z" fill="white"/><path d="M1914.22 7.82764H2097.49L2193.83 339.112H2195.39L2160.91 7.82764H2317.56V554.495H2135.08L2038.74 222.421H2037.18L2071.66 554.495H1914.22V7.82764Z" fill="white"/><path d="M2346.54 545.889V383.776C2373.17 403.353 2396.66 412.747 2416.24 412.747C2438.17 412.747 2449.92 401.001 2449.92 374.366V7.82764H2602.64V400.212C2602.64 508.298 2546.24 562.326 2442.86 562.326C2411.54 562.326 2377.86 556.847 2346.52 545.875L2346.54 545.889Z" fill="white"/><path d="M2647.28 7.82764H2800V554.495H2647.28V7.82764Z" fill="white"/><path d="M447.32 554.509H607.558L607.603 7.39525L425.003 7.36549L330.823 388.748L318.064 7.35059H135.465L0 554.479H160.238L210.306 137.5L213.641 554.494H396.166L500.261 137.485L447.32 554.509Z" fill="white"/></svg>`
 
@@ -31,6 +31,16 @@ export default function QuotePage() {
   const excluded = (scope?.excluded || []).filter(Boolean)
   const revisionRounds = scope?.revision_rounds ?? 2
 
+  const isInternational = pricing?.isInternational || false
+  const billingCurrency = pricing?.billingCurrency || 'INR'
+  const exchangeRate = pricing?.exchangeRateToInr || 1
+  const regionConfig = BILLING_REGIONS[cp?.billing_region || 'india'] || BILLING_REGIONS.india
+
+  // Format helper: foreign currency for international, INR for domestic
+  const fmt = (inrAmount) => isInternational
+    ? formatCurrency(inrAmount / exchangeRate, billingCurrency)
+    : formatRs(inrAmount)
+
   const quoteRef = `MNJ-${String(id).padStart(4, '0')}`
   const quoteDate = new Date(project.created_at).toLocaleDateString('en-GB', {
     day: 'numeric', month: 'long', year: 'numeric',
@@ -45,14 +55,14 @@ export default function QuotePage() {
       price: round100(item.days * dayRate),
     }))
 
-  // Totals
-  const deliverableSubtotal = deliverableRows.reduce((s, r) => s + r.price, 0)
   const rushPremium = pricing?.rushPremium || 0
   const passthrough = pricing?.passthroughTotal || 0
   const contingency = pricing?.contingencyAmount || 0
-  const totalExGst = pricing?.totalProjectValueExGst || 0
+  const totalExTax = pricing?.totalProjectValueExGst || 0
   const gst = pricing?.gstAmount || 0
   const totalPayable = pricing?.totalPayableIncGst || 0
+  const withholdingRate = pricing?.withholdingRate || 0
+  const grossedUp = pricing?.grossUpWithholding || false
 
   // Payment milestones (50/25/25)
   const m1 = round100(totalPayable * 0.50)
@@ -153,7 +163,7 @@ export default function QuotePage() {
                       textAlign: 'center', whiteSpace: 'nowrap' }}>{row.duration}</td>
                     <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A',
                       textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                      {formatRs(row.price)}
+                      {fmt(row.price)}
                     </td>
                   </tr>
                 ))}
@@ -161,24 +171,20 @@ export default function QuotePage() {
                 {/* Rush premium */}
                 {rushPremium > 0 && (
                   <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
-                    <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A' }}>
-                      Rush premium (25%)
-                    </td>
+                    <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A' }}>Rush premium (25%)</td>
                     <td />
                     <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A',
-                      textAlign: 'right', whiteSpace: 'nowrap' }}>{formatRs(rushPremium)}</td>
+                      textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(rushPremium)}</td>
                   </tr>
                 )}
 
                 {/* Third-party passthrough */}
                 {passthrough > 0 && (
                   <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
-                    <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A' }}>
-                      Third-party costs & assets
-                    </td>
+                    <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A' }}>Third-party costs & assets</td>
                     <td />
                     <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A',
-                      textAlign: 'right', whiteSpace: 'nowrap' }}>{formatRs(passthrough)}</td>
+                      textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(passthrough)}</td>
                   </tr>
                 )}
 
@@ -190,31 +196,46 @@ export default function QuotePage() {
                     </td>
                     <td />
                     <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A',
-                      textAlign: 'right', whiteSpace: 'nowrap' }}>{formatRs(contingency)}</td>
+                      textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(contingency)}</td>
                   </tr>
                 )}
 
-                {/* Spacer row */}
                 <tr><td colSpan={3} style={{ padding: '8px 0' }} /></tr>
 
-                {/* Total ex GST */}
+                {/* Sub-total / ex-tax line */}
                 <tr style={{ borderTop: '1px solid #E8E8E8' }}>
-                  <td colSpan={2} style={{ padding: '12px 0', fontSize: '0.85rem',
-                    color: '#555', fontWeight: 500 }}>Total (excl. GST)</td>
+                  <td colSpan={2} style={{ padding: '12px 0', fontSize: '0.85rem', color: '#555', fontWeight: 500 }}>
+                    {isInternational ? 'Sub-total' : 'Total (excl. GST)'}
+                  </td>
                   <td style={{ padding: '12px 0', fontSize: '0.88rem', color: '#1A1A1A',
                     textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                    {formatRs(totalExGst)}
+                    {fmt(totalExTax)}
                   </td>
                 </tr>
 
-                {/* GST */}
-                <tr>
-                  <td colSpan={2} style={{ padding: '8px 0 12px', fontSize: '0.85rem', color: '#555' }}>
-                    GST @ 18%
-                  </td>
-                  <td style={{ padding: '8px 0 12px', fontSize: '0.88rem', color: '#1A1A1A',
-                    textAlign: 'right', whiteSpace: 'nowrap' }}>{formatRs(gst)}</td>
-                </tr>
+                {/* GST — India only */}
+                {!isInternational && (
+                  <tr>
+                    <td colSpan={2} style={{ padding: '8px 0 12px', fontSize: '0.85rem', color: '#555' }}>
+                      GST @ 18%
+                    </td>
+                    <td style={{ padding: '8px 0 12px', fontSize: '0.88rem', color: '#1A1A1A',
+                      textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(gst)}</td>
+                  </tr>
+                )}
+
+                {/* Gross-up row — international with gross-up */}
+                {isInternational && grossedUp && withholdingRate > 0 && (
+                  <tr>
+                    <td colSpan={2} style={{ padding: '8px 0 12px', fontSize: '0.82rem', color: '#888' }}>
+                      Withholding tax gross-up ({Math.round(withholdingRate * 100)}%)
+                    </td>
+                    <td style={{ padding: '8px 0 12px', fontSize: '0.82rem', color: '#888',
+                      textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {fmt(pricing?.withholdingAmountInr || 0)}
+                    </td>
+                  </tr>
+                )}
 
                 {/* Total payable — highlighted */}
                 <tr>
@@ -226,10 +247,19 @@ export default function QuotePage() {
                       <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'rgba(255,255,255,0.7)',
                         letterSpacing: '0.06em', textTransform: 'uppercase' }}>Total Payable</span>
                       <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#F5F248',
-                        letterSpacing: '-0.02em' }}>{formatRs(totalPayable)}</span>
+                        letterSpacing: '-0.02em' }}>{fmt(totalPayable)}</span>
                     </div>
                   </td>
                 </tr>
+
+                {/* Exchange rate footnote for international */}
+                {isInternational && exchangeRate > 1 && (
+                  <tr>
+                    <td colSpan={3} style={{ padding: '8px 0 0', fontSize: '0.72rem', color: '#BBB', textAlign: 'right' }}>
+                      Exchange rate used: 1 {billingCurrency} = ₹{exchangeRate.toFixed(2)}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
 
@@ -253,10 +283,18 @@ export default function QuotePage() {
                     width: 36, textAlign: 'right' }}>{pct}</span>
                   <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0C2818',
                     minWidth: 120, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                    {formatRs(amt)}
+                    {fmt(amt)}
                   </span>
                 </div>
               ))}
+              {isInternational && withholdingRate > 0 && (
+                <p style={{ fontSize: '0.75rem', color: '#AAA', marginTop: 12, lineHeight: 1.6 }}>
+                  {grossedUp
+                    ? `Invoice amount includes a ${Math.round(withholdingRate * 100)}% gross-up for withholding tax. Net amount remitted to Molanji after withholding: ${fmt(totalExTax)}.`
+                    : `${regionConfig.label} tax regulations may require withholding of ${Math.round(withholdingRate * 100)}% on this invoice. Please confirm with your tax advisor.`
+                  }
+                </p>
+              )}
             </div>
 
             {/* Scope notes */}
@@ -286,6 +324,18 @@ export default function QuotePage() {
                 </div>
               )}
             </div>
+
+            {/* International compliance note */}
+            {isInternational && regionConfig.complianceNote && (
+              <div style={{ marginTop: 32, padding: '14px 18px',
+                background: '#FAFAF8', border: '1px solid #E8E8E8', borderRadius: 6 }}>
+                <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+                  textTransform: 'uppercase', color: '#999', marginBottom: 6 }}>Tax & compliance note</p>
+                <p style={{ fontSize: '0.75rem', color: '#888', lineHeight: 1.7 }}>
+                  {regionConfig.complianceNote}
+                </p>
+              </div>
+            )}
 
             {/* Footer */}
             <div style={{ marginTop: 56, paddingTop: 24, borderTop: '1px solid #E8E8E8',
