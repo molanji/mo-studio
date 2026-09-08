@@ -96,52 +96,122 @@ export default function ViewQuotePage() {
         </div>
 
         {/* Pricing summary */}
-        <div style={{ background: '#1A1A1A', border: `2px solid ${MARGIN_COLORS[pricing.marginStatus]}`,
-          borderRadius: 14, padding: 28, marginBottom: 20 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <p style={{ fontSize: '0.7rem', color: '#555', marginBottom: 6 }}>RECOMMENDED PRICE</p>
-              <p style={{ fontSize: '2rem', fontWeight: 800, color: '#F0F0F0' }}>{formatRs(pricing.recommendedPrice)}</p>
+        {pricing.engagement_type === 'retainer' ? (
+          <div style={{ background: '#1A1A1A', border: `2px solid ${MARGIN_COLORS[pricing.marginStatus]}`,
+            borderRadius: 14, padding: 28, marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <p style={{ fontSize: '0.7rem', color: '#555', marginBottom: 6 }}>MONTHLY FEE</p>
+                <p style={{ fontSize: '2rem', fontWeight: 800, color: '#F0F0F0' }}>{formatRs(pricing.monthlyFixed)}</p>
+                {pricing.isInternational && pricing.monthlyFixedForeign && (
+                  <p style={{ fontSize: '0.85rem', color: '#666', marginTop: 2 }}>
+                    {formatCurrency(pricing.monthlyFixedForeign, pricing.billingCurrency)}
+                  </p>
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '0.7rem', color: '#555', marginBottom: 6 }}>GROSS MARGIN</p>
+                <p style={{ fontSize: '2rem', fontWeight: 800, color: MARGIN_COLORS[pricing.marginStatus] }}>
+                  {pricing.grossMarginPercent}%
+                </p>
+              </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '0.7rem', color: '#555', marginBottom: 6 }}>GROSS MARGIN</p>
-              <p style={{ fontSize: '2rem', fontWeight: 800, color: MARGIN_COLORS[pricing.marginStatus] }}>
-                {pricing.grossMarginPercent}%
-              </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>POINT POOL</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F0F0F0' }}>{pricing.pointPool} pts/mo</p>
+              </div>
+              <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>COMMITMENT</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#B8EAC4' }}>{pricing.commitmentMonths} mo</p>
+              </div>
+              <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>CONTRACT TOTAL</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F5F248' }}>{formatRs(pricing.totalContractValue)}</p>
+              </div>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-            <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
-              <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>FLOOR</p>
-              <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#E03028' }}>{formatRs(pricing.floorPrice)}</p>
+        ) : (
+          <div style={{ background: '#1A1A1A', border: `2px solid ${MARGIN_COLORS[pricing.marginStatus]}`,
+            borderRadius: 14, padding: 28, marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div>
+                <p style={{ fontSize: '0.7rem', color: '#555', marginBottom: 6 }}>RECOMMENDED PRICE</p>
+                <p style={{ fontSize: '2rem', fontWeight: 800, color: '#F0F0F0' }}>{formatRs(pricing.recommendedPrice)}</p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '0.7rem', color: '#555', marginBottom: 6 }}>GROSS MARGIN</p>
+                <p style={{ fontSize: '2rem', fontWeight: 800, color: MARGIN_COLORS[pricing.marginStatus] }}>
+                  {pricing.grossMarginPercent}%
+                </p>
+              </div>
             </div>
-            <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
-              <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>RECOMMENDED</p>
-              <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#B8EAC4' }}>{formatRs(pricing.recommendedPrice)}</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>FLOOR</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#E03028' }}>{formatRs(pricing.floorPrice)}</p>
+              </div>
+              <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>RECOMMENDED</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#B8EAC4' }}>{formatRs(pricing.recommendedPrice)}</p>
+              </div>
+              <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
+                <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>STRETCH</p>
+                <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F5F248' }}>{formatRs(pricing.stretchPrice)}</p>
+              </div>
             </div>
-            <div style={{ background: '#111', borderRadius: 8, padding: 12 }}>
-              <p style={{ fontSize: '0.68rem', color: '#555', marginBottom: 4 }}>STRETCH</p>
-              <p style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F5F248' }}>{formatRs(pricing.stretchPrice)}</p>
-            </div>
+            {pricing.recommendedPrice < pricing.floorPrice && (
+              <div style={{ marginTop: 16, background: 'rgba(224,48,40,0.12)',
+                border: '1px solid rgba(224,48,40,0.3)', borderRadius: 8,
+                padding: '12px 14px', color: '#E03028', fontSize: '0.82rem', lineHeight: 1.6 }}>
+                ⚠ <strong>Underpriced:</strong> the day-rate price ({formatRs(pricing.recommendedPrice)}) is below
+                the floor needed to hit a healthy margin ({formatRs(pricing.floorPrice)}). Usually caused by too many
+                founders assigned relative to days estimated. Do not proceed without review.
+              </div>
+            )}
           </div>
-
-          {pricing.recommendedPrice < pricing.floorPrice && (
-            <div style={{ marginTop: 16, background: 'rgba(224,48,40,0.12)',
-              border: '1px solid rgba(224,48,40,0.3)', borderRadius: 8,
-              padding: '12px 14px', color: '#E03028', fontSize: '0.82rem', lineHeight: 1.6 }}>
-              ⚠ <strong>Underpriced:</strong> the day-rate price ({formatRs(pricing.recommendedPrice)}) is below
-              the floor needed to hit a healthy margin ({formatRs(pricing.floorPrice)}). Usually caused by too many
-              founders assigned relative to days estimated. Do not proceed without review.
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Breakdown */}
         <div style={{ background: '#1A1A1A', border: '1px solid #222', borderRadius: 14,
           padding: 24, marginBottom: 20 }}>
           <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#666',
-            textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Full Breakdown</h3>
-          {(() => {
+            textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
+            {pricing.engagement_type === 'retainer' ? 'Monthly Cash Flow' : 'Full Breakdown'}
+          </h3>
+          {pricing.engagement_type === 'retainer' ? (() => {
+            const fc = inr => pricing.isInternational && pricing.exchangeRateToInr > 1
+              ? ` (${formatCurrency(inr / pricing.exchangeRateToInr, pricing.billingCurrency)})` : ''
+            const rows = pricing.isInternational ? [
+              [`Monthly fee${fc(pricing.monthlyFixed)}`, pricing.monthlyFixed, true],
+              ...(pricing.withholdingRate > 0 ? (
+                pricing.grossUpWithholding ? [
+                  [`Gross-up (${Math.round(pricing.withholdingRate*100)}%)`, pricing.withholdingMonthly],
+                  [`Total payable${fc(pricing.totalPayableMonthly)}`, pricing.totalPayableMonthly, true],
+                  [`Client withholds (${Math.round(pricing.withholdingRate*100)}%)`, -pricing.withholdingMonthly],
+                ] : [
+                  [`Client withholds (${Math.round(pricing.withholdingRate*100)}%)`, -pricing.withholdingMonthly],
+                ]
+              ) : []),
+              [`Net Molanji receives${fc(pricing.actualCashMonthly)}`, pricing.actualCashMonthly, true],
+              ['Contract total (ex tax)', pricing.totalContractValue, true],
+            ] : [
+              ['Monthly fee (ex GST)', pricing.monthlyFixed, true],
+              ['GST (18%)', pricing.gstMonthly],
+              ['Total payable monthly (inc GST)', pricing.totalPayableMonthly, true],
+              ['TDS client deducts (10%)', -pricing.tdsMonthly],
+              ['Actual cash received monthly', pricing.actualCashMonthly, true],
+              [`Contract total (${pricing.commitmentMonths} months, ex tax)`, pricing.totalContractValue, true],
+              ['Actual cash total', pricing.actualCashTotal, true],
+            ]
+            return rows.map(([label, val, bold]) => (
+              <div key={label} style={{ display: 'flex', justifyContent: 'space-between',
+                padding: '8px 0', borderBottom: '1px solid #1E1E1E' }}>
+                <span style={{ fontSize: '0.85rem', color: bold ? '#F0F0F0' : '#888', fontWeight: bold ? 700 : 400 }}>{label}</span>
+                <span style={{ fontSize: '0.85rem', color: bold ? '#F0F0F0' : '#CCC', fontWeight: bold ? 700 : 400 }}>{formatRs(val)}</span>
+              </div>
+            ))
+          })() : (() => {
             const fc = (inr) => pricing.isInternational && pricing.exchangeRateToInr > 1
               ? ` (${formatCurrency(inr / pricing.exchangeRateToInr, pricing.billingCurrency)})`
               : ''

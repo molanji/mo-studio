@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   calcStudioDerived, calcClientProfile, calcScope, calcPricing,
+  calcRetainerPricing,
   DELIVERABLES, formatRs, formatCurrency, BILLING_REGIONS,
 } from '@/lib/pricingCalc'
 
@@ -82,6 +83,22 @@ export default function NewQuotePage() {
 
   const [extraRevisionRounds, setExtraRevisionRounds] = useState(0)
 
+  const [engagementType, setEngagementType] = useState('project')
+  const [retainerScope, setRetainerScope] = useState({
+    point_pool_monthly: 80,
+    point_value_inr: 0,
+    planning_mix: [
+      { category: 'Brand Design', points: 30 },
+      { category: 'Digital & Social', points: 25 },
+      { category: 'Strategy & Decks', points: 15 },
+      { category: 'Flex / Overflow', points: 10 },
+    ],
+    rollover_cap_percent: 25,
+    freelancer_buffer_percent: 15,
+    overage_enabled: true,
+    commitment_months: 3,
+  })
+
   useEffect(() => {
     fetch('/api/pricing/config').then(r => r.json()).then(d => {
       setConfig(d.config)
@@ -102,6 +119,9 @@ export default function NewQuotePage() {
   scopeResult.freelancerCost = scope.freelancer_involved === 'yes' ? Number(scope.freelancer_cost) : 0
   scopeResult.daysPerRevisionRound = Number(scope.days_per_revision_round)
   const pricing = calcPricing({ scopeResult, clientProfile, config: configWithDerived, extraRevisionRounds })
+  const retainerPricing = engagementType === 'retainer'
+    ? calcRetainerPricing({ retainerScope, clientProfile, config: configWithDerived })
+    : null
 
   async function fetchRate(currency) {
     if (currency === 'INR') {
@@ -223,16 +243,23 @@ export default function NewQuotePage() {
 
   async function saveQuote() {
     setSaving(true)
+    const payload = engagementType === 'retainer' ? {
+      client_name: clientName || 'Untitled Client',
+      status: 'proposal_sent',
+      client_profile: { ...profile, ...clientProfile },
+      scope: { engagement_type: 'retainer', ...retainerScope },
+      pricing: retainerPricing,
+    } : {
+      client_name: clientName || 'Untitled Client',
+      status: 'proposal_sent',
+      client_profile: { ...profile, ...clientProfile },
+      scope: { ...scope, ...scopeResult },
+      pricing,
+    }
     const res = await fetch('/api/pricing/projects', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_name: clientName || 'Untitled Client',
-        status: 'proposal_sent',
-        client_profile: { ...profile, ...clientProfile },
-        scope: { ...scope, ...scopeResult },
-        pricing,
-      }),
+      body: JSON.stringify(payload),
     })
     const data = await res.json()
     router.push(`/pricing/${data.id}`)
@@ -251,7 +278,10 @@ export default function NewQuotePage() {
       <div style={{ maxWidth: 760, margin: '0 auto' }}>
         {/* Step indicator */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 32 }}>
-          {['Client Profile', 'Scope Builder', 'Pricing'].map((label, i) => (
+          {['Client Profile',
+          engagementType === 'retainer' ? 'Point Pool' : 'Scope Builder',
+          engagementType === 'retainer' ? 'Monthly Fee' : 'Pricing',
+        ].map((label, i) => (
             <div key={label} style={{
               flex: 1, padding: '10px 14px', borderRadius: 8,
               background: step === i + 1 ? accent : '#1A1A1A',
@@ -273,6 +303,18 @@ export default function NewQuotePage() {
               <input type="text" value={clientName} onChange={e => setClientName(e.target.value)}
                 placeholder="e.g. Acme Corp" style={inputStyle} />
             </Field>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {[['project', 'Project Quote'], ['retainer', 'Retainer']].map(([val, lbl]) => (
+                <button key={val} onClick={() => setEngagementType(val)} style={{
+                  flex: 1, padding: '10px 14px', borderRadius: 8, cursor: 'pointer',
+                  background: engagementType === val ? accent : '#1A1A1A',
+                  border: `1px solid ${engagementType === val ? accent : '#222'}`,
+                  color: engagementType === val ? '#fff' : '#555',
+                  fontSize: '0.85rem', fontWeight: 600,
+                }}>{lbl}</button>
+              ))}
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Field label="Industry">
                 <Select value={profile.industry} onChange={v => setProfile(p => ({ ...p, industry: v }))}
@@ -403,8 +445,8 @@ export default function NewQuotePage() {
           </div>
         )}
 
-        {/* STEP 2 — Scope Builder */}
-        {step === 2 && (
+        {/* STEP 2 — Project: Scope Builder */}
+        {step === 2 && engagementType === 'project' && (
           <div>
             <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F0F0F0', marginBottom: 6 }}>
               Deliverables
@@ -651,8 +693,105 @@ export default function NewQuotePage() {
           </div>
         )}
 
-        {/* STEP 3 — Pricing Calculator */}
-        {step === 3 && (
+        {/* STEP 2 — Retainer: Point Pool */}
+        {step === 2 && engagementType === 'retainer' && (
+          <div>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F0F0F0', marginBottom: 6 }}>
+              Point Pool Setup
+            </h3>
+            <p style={{ fontSize: '0.78rem', color: '#555', marginBottom: 20 }}>
+              Points are the unit of retainer capacity. 1 point ≈ 4 hrs of senior creative time (½ day).
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+              <Field label="Monthly Point Pool">
+                <input type="number" value={retainerScope.point_pool_monthly} style={inputStyle}
+                  onChange={e => setRetainerScope(s => ({ ...s, point_pool_monthly: Number(e.target.value) }))} />
+              </Field>
+              <Field label="Commitment Length">
+                <Select value={String(retainerScope.commitment_months)}
+                  onChange={v => setRetainerScope(s => ({ ...s, commitment_months: Number(v) }))}
+                  options={[['1','Month-to-month'],['3','3 months'],['6','6 months'],['12','12 months']]} />
+              </Field>
+              <Field label="Point Value (Rs) — 0 = auto from studio rate">
+                <input type="number" value={retainerScope.point_value_inr} style={inputStyle}
+                  onChange={e => setRetainerScope(s => ({ ...s, point_value_inr: Number(e.target.value) }))} />
+              </Field>
+              <Field label="Rollover Cap (% of pool)">
+                <input type="number" value={retainerScope.rollover_cap_percent} style={inputStyle}
+                  onChange={e => setRetainerScope(s => ({ ...s, rollover_cap_percent: Number(e.target.value) }))} />
+              </Field>
+              <Field label="Freelancer Buffer %">
+                <input type="number" value={retainerScope.freelancer_buffer_percent} style={inputStyle}
+                  onChange={e => setRetainerScope(s => ({ ...s, freelancer_buffer_percent: Number(e.target.value) }))} />
+              </Field>
+              <Field label="Overage Billing">
+                <Select value={retainerScope.overage_enabled ? 'yes' : 'no'}
+                  onChange={v => setRetainerScope(s => ({ ...s, overage_enabled: v === 'yes' }))}
+                  options={[['yes','Enabled (per-point rate)'],['no','Not offered']]} />
+              </Field>
+            </div>
+
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#F0F0F0', marginBottom: 4 }}>
+              Planning Mix <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#555' }}>(illustrative — not contractual)</span>
+            </h3>
+            <p style={{ fontSize: '0.78rem', color: '#555', marginBottom: 12 }}>
+              Shows the expected split of creative capacity. Share with client for alignment only.
+            </p>
+            <div style={{ background: '#1A1A1A', border: '1px solid #222', borderRadius: 12, padding: 16, marginBottom: 8 }}>
+              {retainerScope.planning_mix.map((row, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center',
+                  padding: '6px 0', borderBottom: '1px solid #1E1E1E' }}>
+                  <input type="text" value={row.category} placeholder="Category name"
+                    onChange={e => setRetainerScope(s => {
+                      const mix = [...s.planning_mix]; mix[i] = { ...mix[i], category: e.target.value }
+                      return { ...s, planning_mix: mix }
+                    })} style={{ ...inputStyle, flex: 2 }} />
+                  <input type="number" value={row.points} min={0}
+                    onChange={e => setRetainerScope(s => {
+                      const mix = [...s.planning_mix]; mix[i] = { ...mix[i], points: Number(e.target.value) }
+                      return { ...s, planning_mix: mix }
+                    })} style={{ ...inputStyle, width: 70 }} />
+                  <span style={{ fontSize: '0.75rem', color: '#555', whiteSpace: 'nowrap' }}>pts</span>
+                  <button onClick={() => setRetainerScope(s => ({
+                    ...s, planning_mix: s.planning_mix.filter((_, j) => j !== i)
+                  }))} style={{ background: 'transparent', border: 'none', color: '#555',
+                    fontSize: '1.2rem', padding: '0 4px', cursor: 'pointer', lineHeight: 1 }}>×</button>
+                </div>
+              ))}
+              <button onClick={() => setRetainerScope(s => ({
+                ...s, planning_mix: [...s.planning_mix, { category: '', points: 0 }]
+              }))} style={{ background: 'transparent', border: '1px dashed #333', borderRadius: 8,
+                color: '#666', padding: '7px 14px', fontSize: '0.8rem', marginTop: 8, cursor: 'pointer' }}>
+                + Add category
+              </button>
+            </div>
+            {(() => {
+              const total = retainerScope.planning_mix.reduce((s, r) => s + r.points, 0)
+              const pool = retainerScope.point_pool_monthly
+              return (
+                <p style={{ fontSize: '0.78rem', marginBottom: 24,
+                  color: total > pool ? '#F5F248' : total === pool ? '#B8EAC4' : '#555' }}>
+                  Mix total: {total} / {pool} points{total === pool && ' ✓'}
+                </p>
+              )
+            })()}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setStep(1)} style={{ flex: 1, padding: 14, background: 'transparent',
+                border: '1px solid #2A2A2A', borderRadius: 10, color: '#888', fontSize: '0.9rem', fontWeight: 600 }}>
+                ← Back
+              </button>
+              <button onClick={() => setStep(3)} style={{ flex: 2, padding: 14, background: accent,
+                border: 'none', borderRadius: 10, color: '#fff', fontSize: '0.95rem', fontWeight: 700 }}>
+                Next: Monthly Fee →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3 — Project: Pricing Calculator */}
+        {step === 3 && engagementType === 'project' && (
           <div>
             <div style={{ background: '#1A1A1A', border: `2px solid ${MARGIN_COLORS[pricing.marginStatus]}`,
               borderRadius: 14, padding: 28, marginBottom: 20 }}>
@@ -781,6 +920,114 @@ export default function NewQuotePage() {
                 borderRadius: 10, color: '#111', fontSize: '0.95rem', fontWeight: 700,
                 opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Saving…' : '✓ Save Quote'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3 — Retainer: Monthly Fee */}
+        {step === 3 && engagementType === 'retainer' && retainerPricing && (
+          <div>
+            <div style={{ background: '#1A1A1A', border: `2px solid ${MARGIN_COLORS[retainerPricing.marginStatus]}`,
+              borderRadius: 14, padding: 28, marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
+                <div>
+                  <p style={{ fontSize: '0.7rem', color: '#555', marginBottom: 6 }}>MONTHLY FIXED FEE</p>
+                  <p style={{ fontSize: '2rem', fontWeight: 800, color: '#F0F0F0' }}>
+                    {formatRs(retainerPricing.monthlyFixed)}
+                    {retainerPricing.isInternational && retainerPricing.monthlyFixedForeign && (
+                      <span style={{ fontSize: '1rem', color: '#888', marginLeft: 8 }}>
+                        ({formatCurrency(retainerPricing.monthlyFixedForeign, retainerPricing.billingCurrency)})
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: '0.7rem', color: '#555', marginBottom: 6 }}>GROSS MARGIN</p>
+                  <p style={{ fontSize: '2rem', fontWeight: 800, color: MARGIN_COLORS[retainerPricing.marginStatus] }}>
+                    {retainerPricing.grossMarginPercent}%
+                  </p>
+                </div>
+              </div>
+              <h4 style={{ fontSize: '0.72rem', fontWeight: 700, color: '#555',
+                textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Fee Waterfall</h4>
+              {[
+                [`Internal cost (${retainerPricing.pointPool} pts × ${formatRs(retainerPricing.pointValue)})`, retainerPricing.monthlyBaseCost],
+                [`At target margin (${config.target_margin_percent}%)`, retainerPricing.monthlyFeeAtMargin, true],
+                [`+ Freelancer buffer (${retainerPricing.freelancerBufferPercent}%)`, retainerPricing.monthlyFeeWithBuffer, true],
+                ['Rounded fixed fee', retainerPricing.monthlyFixed, true],
+              ].map(([label, val, bold]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between',
+                  padding: '7px 0', borderBottom: '1px solid #1E1E1E' }}>
+                  <span style={{ fontSize: '0.83rem', color: bold ? '#F0F0F0' : '#888', fontWeight: bold ? 700 : 400 }}>{label}</span>
+                  <span style={{ fontSize: '0.83rem', color: bold ? '#F0F0F0' : '#CCC', fontWeight: bold ? 700 : 400 }}>{formatRs(val)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ background: '#1A1A1A', border: '1px solid #222', borderRadius: 14, padding: 24, marginBottom: 20 }}>
+              <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#666',
+                textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Monthly Cash Flow</h3>
+              {(() => {
+                const fc = inr => retainerPricing.isInternational && retainerPricing.exchangeRateToInr > 1
+                  ? ` (${formatCurrency(inr / retainerPricing.exchangeRateToInr, retainerPricing.billingCurrency)})` : ''
+                const rows = retainerPricing.isInternational ? [
+                  [`Invoice amount${fc(retainerPricing.monthlyFixed)}`, retainerPricing.monthlyFixed, true],
+                  ...(retainerPricing.withholdingRate > 0 ? (
+                    retainerPricing.grossUpWithholding ? [
+                      [`Gross-up (${Math.round(retainerPricing.withholdingRate*100)}%)`, retainerPricing.withholdingMonthly],
+                      [`Total payable${fc(retainerPricing.totalPayableMonthly)}`, retainerPricing.totalPayableMonthly, true],
+                      [`Client withholds (${Math.round(retainerPricing.withholdingRate*100)}%)`, -retainerPricing.withholdingMonthly],
+                    ] : [
+                      [`Client withholds (${Math.round(retainerPricing.withholdingRate*100)}%)`, -retainerPricing.withholdingMonthly],
+                    ]
+                  ) : []),
+                  [`Net Molanji receives${fc(retainerPricing.actualCashMonthly)}`, retainerPricing.actualCashMonthly, true],
+                ] : [
+                  ['Monthly fee (ex GST)', retainerPricing.monthlyFixed, true],
+                  ['GST (18%)', retainerPricing.gstMonthly],
+                  ['Total payable (inc GST)', retainerPricing.totalPayableMonthly, true],
+                  ['TDS client deducts (10%)', -retainerPricing.tdsMonthly],
+                  ['Actual cash Molanji receives', retainerPricing.actualCashMonthly, true],
+                ]
+                return rows.map(([label, val, bold]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between',
+                    padding: '8px 0', borderBottom: '1px solid #1E1E1E' }}>
+                    <span style={{ fontSize: '0.85rem', color: bold ? '#F0F0F0' : '#888', fontWeight: bold ? 700 : 400 }}>{label}</span>
+                    <span style={{ fontSize: '0.85rem', color: bold ? '#F0F0F0' : '#CCC', fontWeight: bold ? 700 : 400 }}>{formatRs(val)}</span>
+                  </div>
+                ))
+              })()}
+            </div>
+
+            <div style={{ background: '#1A1A1A', border: '1px solid #222', borderRadius: 14, padding: 24, marginBottom: 20 }}>
+              <h3 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#666',
+                textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>Contract Summary</h3>
+              {[
+                [`Commitment`, `${retainerPricing.commitmentMonths} month${retainerPricing.commitmentMonths > 1 ? 's' : ''}`],
+                ['Total contract value (ex tax)', formatRs(retainerPricing.totalContractValue)],
+                ['Total payable (inc tax)', formatRs(retainerPricing.totalPayableContract)],
+                ['Total cash Molanji receives', formatRs(retainerPricing.actualCashTotal)],
+                ['Overage rate per point', retainerScope.overage_enabled ? formatRs(retainerPricing.overageRatePerPoint) : 'Not offered'],
+                ['Rollover cap', `${retainerPricing.rolloverCapPercent}% (max ${retainerPricing.maxRolloverPoints} pts/month)`],
+              ].map(([label, val]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between',
+                  padding: '8px 0', borderBottom: '1px solid #1E1E1E' }}>
+                  <span style={{ fontSize: '0.85rem', color: '#888' }}>{label}</span>
+                  <span style={{ fontSize: '0.85rem', color: '#F0F0F0', fontWeight: 600 }}>{val}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setStep(2)} style={{ flex: 1, padding: 14, background: 'transparent',
+                border: '1px solid #2A2A2A', borderRadius: 10, color: '#888', fontSize: '0.9rem', fontWeight: 600 }}>
+                ← Back
+              </button>
+              <button onClick={saveQuote} disabled={saving} style={{ flex: 2, padding: 14, background: '#B8EAC4',
+                border: 'none', borderRadius: 10, color: '#111', fontSize: '0.95rem', fontWeight: 700,
+                opacity: saving ? 0.6 : 1 }}>
+                {saving ? 'Saving…' : '✓ Save Retainer Quote'}
               </button>
             </div>
           </div>

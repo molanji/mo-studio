@@ -26,6 +26,7 @@ export default function QuotePage() {
   }
 
   const { client_profile: cp, scope, pricing } = project
+  const isRetainer = pricing?.engagement_type === 'retainer'
   const dayRate = cp?.dayRate || 0
   const included = scope?.included || []
   const excluded = (scope?.excluded || []).filter(Boolean)
@@ -125,21 +126,208 @@ export default function QuotePage() {
           <div style={{ padding: '48px 48px 56px' }}>
 
             {/* Prepared for */}
-            <div style={{ marginBottom: 44 }}>
+            <div style={{ marginBottom: 16 }}>
               <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.16em',
                 color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Prepared for</p>
               <p style={{ fontSize: '2rem', fontWeight: 800, color: '#0C2818',
                 letterSpacing: '-0.03em', lineHeight: 1 }}>{project.client_name}</p>
             </div>
+            {isRetainer && (
+              <div style={{ display: 'inline-block', background: '#0C2818', color: '#B8EAC4',
+                fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.14em',
+                textTransform: 'uppercase', padding: '4px 10px', borderRadius: 4, marginBottom: 28 }}>
+                Retainer Agreement
+              </div>
+            )}
+            {!isRetainer && <div style={{ marginBottom: 28 }} />}
 
             {/* Divider */}
             <div style={{ height: 2, background: '#0C2818', marginBottom: 32 }} />
 
-            {/* Scope of Work */}
-            <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.16em',
-              color: '#999', textTransform: 'uppercase', marginBottom: 20 }}>Scope of Work</p>
+            {/* ═══ RETAINER QUOTE BODY ═══ */}
+            {isRetainer && (() => {
+              const planningMix = scope?.planning_mix || []
+              const pointPool = pricing?.pointPool || 0
+              const commitmentMonths = pricing?.commitmentMonths || 0
+              const monthlyFixed = pricing?.monthlyFixed || 0
+              const totalPayableMonthly = pricing?.totalPayableMonthly || 0
+              const overageRate = pricing?.overageRatePerPoint || 0
+              const rolloverCap = pricing?.rolloverCapPercent || 0
+              const maxRollover = pricing?.maxRolloverPoints || 0
+              const overageEnabled = scope?.overage_enabled !== false
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 0 }}>
+              return (
+                <>
+                  {/* Retainer package */}
+                  <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.16em',
+                    color: '#999', textTransform: 'uppercase', marginBottom: 20 }}>Retainer Package</p>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 24 }}>
+                    <tbody>
+                      {[
+                        ['Monthly Point Pool', `${pointPool} points`],
+                        ['Commitment Period', `${commitmentMonths} month${commitmentMonths > 1 ? 's' : ''}`],
+                        ['Rollover Policy', `Up to ${rolloverCap}% of pool (max ${maxRollover} pts) rolls to next month`],
+                        overageEnabled ? ['Overage Rate', `${fmt(overageRate)} per point`] : ['Overage', 'Not offered'],
+                      ].map(([label, val]) => (
+                        <tr key={label} style={{ borderBottom: '1px solid #F0F0F0' }}>
+                          <td style={{ padding: '11px 0', fontSize: '0.85rem', color: '#888', width: '40%' }}>{label}</td>
+                          <td style={{ padding: '11px 0', fontSize: '0.88rem', color: '#1A1A1A', fontWeight: 500 }}>{val}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Planning mix — only show if populated */}
+                  {planningMix.length > 0 && (
+                    <>
+                      <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.16em',
+                        color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>
+                        Indicative Planning Mix
+                        <span style={{ marginLeft: 8, fontSize: '0.6rem', color: '#CCC',
+                          textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
+                          (illustrative — not contractual)
+                        </span>
+                      </p>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 32 }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid #E8E8E8' }}>
+                            <th style={{ textAlign: 'left', padding: '0 0 8px', fontSize: '0.65rem',
+                              fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Category</th>
+                            <th style={{ textAlign: 'right', padding: '0 0 8px', fontSize: '0.65rem',
+                              fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Points</th>
+                            <th style={{ textAlign: 'right', padding: '0 0 8px', fontSize: '0.65rem',
+                              fontWeight: 600, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Share</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {planningMix.map((row, i) => (
+                            <tr key={i} style={{ borderBottom: '1px solid #F0F0F0' }}>
+                              <td style={{ padding: '10px 0', fontSize: '0.85rem', color: '#1A1A1A' }}>{row.category}</td>
+                              <td style={{ padding: '10px 0', fontSize: '0.85rem', color: '#888', textAlign: 'right' }}>{row.points}</td>
+                              <td style={{ padding: '10px 0', fontSize: '0.82rem', color: '#888', textAlign: 'right' }}>
+                                {pointPool > 0 ? Math.round(row.points / pointPool * 100) : 0}%
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </>
+                  )}
+
+                  {/* Fee */}
+                  <div style={{ height: 2, background: '#0C2818', marginBottom: 24 }} />
+                  <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.16em',
+                    color: '#999', textTransform: 'uppercase', marginBottom: 20 }}>Monthly Fee</p>
+
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 0 }}>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
+                        <td colSpan={2} style={{ padding: '8px 0 12px', fontSize: '0.85rem', color: '#555' }}>
+                          {isInternational ? 'Monthly fee' : 'Monthly fee (ex GST)'}
+                        </td>
+                        <td style={{ padding: '8px 0 12px', fontSize: '0.88rem', color: '#1A1A1A',
+                          textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {fmt(monthlyFixed)}
+                        </td>
+                      </tr>
+                      {!isInternational && (
+                        <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
+                          <td colSpan={2} style={{ padding: '8px 0 12px', fontSize: '0.85rem', color: '#555' }}>GST @ 18%</td>
+                          <td style={{ padding: '8px 0 12px', fontSize: '0.88rem', color: '#1A1A1A',
+                            textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(pricing?.gstMonthly || 0)}</td>
+                        </tr>
+                      )}
+                      {isInternational && pricing?.grossUpWithholding && pricing?.withholdingRate > 0 && (
+                        <tr style={{ borderBottom: '1px solid #F0F0F0' }}>
+                          <td colSpan={2} style={{ padding: '8px 0 12px', fontSize: '0.82rem', color: '#888' }}>
+                            Withholding gross-up ({Math.round(pricing.withholdingRate * 100)}%)
+                          </td>
+                          <td style={{ padding: '8px 0 12px', fontSize: '0.82rem', color: '#888',
+                            textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            {fmt(pricing?.withholdingMonthly || 0)}
+                          </td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td colSpan={3} style={{ padding: 0 }}>
+                          <div style={{ background: '#0C2818', borderRadius: 6, padding: '16px 20px',
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'rgba(255,255,255,0.7)',
+                              letterSpacing: '0.06em', textTransform: 'uppercase' }}>Monthly Total Payable</span>
+                            <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#F5F248',
+                              letterSpacing: '-0.02em' }}>{fmt(totalPayableMonthly)}</span>
+                          </div>
+                        </td>
+                      </tr>
+                      {isInternational && exchangeRate > 1 && (
+                        <tr>
+                          <td colSpan={3} style={{ padding: '8px 0 0', fontSize: '0.72rem', color: '#BBB', textAlign: 'right' }}>
+                            Exchange rate: 1 {billingCurrency} = ₹{exchangeRate.toFixed(2)}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Payment terms */}
+                  <div style={{ marginTop: 48 }}>
+                    <div style={{ height: 2, background: '#0C2818', marginBottom: 24 }} />
+                    <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.16em',
+                      color: '#999', textTransform: 'uppercase', marginBottom: 20 }}>Payment Terms</p>
+                    <p style={{ fontSize: '0.85rem', color: '#444', lineHeight: 1.8, marginBottom: 12 }}>
+                      Invoices are raised monthly, due <strong style={{ color: '#1A1A1A' }}>NET-15</strong> from invoice date.
+                      The first invoice is due on signing. A {commitmentMonths}-month commitment is required;
+                      cancellation with less than 30 days notice will attract a one-month cancellation fee.
+                    </p>
+                    {isInternational && pricing?.withholdingRate > 0 && (
+                      <p style={{ fontSize: '0.75rem', color: '#AAA', marginTop: 12, lineHeight: 1.6 }}>
+                        {pricing?.grossUpWithholding
+                          ? `Invoice includes a ${Math.round(pricing.withholdingRate * 100)}% gross-up. Net amount after client withholding: ${fmt(pricing?.actualCashMonthly || 0)}/month.`
+                          : `${regionConfig.label} regulations may require withholding of ${Math.round(pricing.withholdingRate * 100)}% on this invoice. Please confirm with your tax advisor.`
+                        }
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Pool policies */}
+                  <div style={{ marginTop: 48 }}>
+                    <div style={{ height: 2, background: '#0C2818', marginBottom: 24 }} />
+                    <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.16em',
+                      color: '#999', textTransform: 'uppercase', marginBottom: 20 }}>Pool Policies</p>
+                    <p style={{ fontSize: '0.85rem', color: '#444', lineHeight: 1.8, marginBottom: 12 }}>
+                      <strong style={{ color: '#1A1A1A' }}>Rollover:</strong>{' '}
+                      Up to {rolloverCap}% of unused points (max {maxRollover} pts) carry forward to the following month.
+                      Points that exceed the rollover cap expire at month-end.
+                    </p>
+                    {overageEnabled && (
+                      <p style={{ fontSize: '0.85rem', color: '#444', lineHeight: 1.8 }}>
+                        <strong style={{ color: '#1A1A1A' }}>Overage:</strong>{' '}
+                        Work beyond the monthly pool is billed at {fmt(overageRate)} per point, invoiced with the following month's fee.
+                        Molanji will flag when utilisation approaches 80% of the pool.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Compliance note */}
+                  {isInternational && regionConfig.complianceNote && (
+                    <div style={{ marginTop: 32, padding: '14px 18px',
+                      background: '#FAFAF8', border: '1px solid #E8E8E8', borderRadius: 6 }}>
+                      <p style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em',
+                        textTransform: 'uppercase', color: '#999', marginBottom: 6 }}>Tax & compliance note</p>
+                      <p style={{ fontSize: '0.75rem', color: '#888', lineHeight: 1.7 }}>{regionConfig.complianceNote}</p>
+                    </div>
+                  )}
+                </>
+              )
+            })()}
+
+            {/* ═══ PROJECT QUOTE BODY ═══ */}
+            {/* Scope of Work */}
+            {!isRetainer && <p style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.16em',
+              color: '#999', textTransform: 'uppercase', marginBottom: 20 }}>Scope of Work</p>}
+
+            {!isRetainer && <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 0 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #E8E8E8' }}>
                   <th style={{ textAlign: 'left', padding: '0 0 10px',
@@ -261,8 +449,9 @@ export default function QuotePage() {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </table>}
 
+            {!isRetainer && <>
             {/* Payment Schedule */}
             <div style={{ marginTop: 48 }}>
               <div style={{ height: 2, background: '#0C2818', marginBottom: 24 }} />
@@ -336,6 +525,7 @@ export default function QuotePage() {
                 </p>
               </div>
             )}
+            </>}
 
             {/* Footer */}
             <div style={{ marginTop: 56, paddingTop: 24, borderTop: '1px solid #E8E8E8',
